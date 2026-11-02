@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZeroProof Twin</title>
+<style>
+:root{--bg:#eef2e3;--ink:#17261f;--mute:#5d6b60;--card:#fbfcf6;--line:#cfd8bf;--lime:#a6c13a;--zest:#e49a1c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 Georgia,'Times New Roman',serif}
+main{max-width:760px;margin:0 auto;padding:48px 20px 80px}
+h1{font-size:clamp(34px,7vw,56px);line-height:1.05;margin:0 0 6px;letter-spacing:-.02em}
+h1 span{color:var(--mute);font-style:italic}
+.sub{color:var(--mute);margin:0 0 28px}
+form{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+input{flex:1;min-width:200px;padding:14px 16px;font:inherit;border:2px solid var(--ink);border-radius:10px;background:var(--card)}
+button{padding:14px 22px;font:inherit;font-weight:700;border:2px solid var(--ink);border-radius:10px;background:var(--lime);color:var(--ink);cursor:pointer}
+button:hover{background:var(--zest)}
+input:focus-visible,button:focus-visible{outline:3px solid var(--zest);outline-offset:2px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:30px}
+.chips button{padding:6px 14px;font-size:15px;font-weight:400;background:transparent;border-width:1px}
+#out>*{margin-bottom:22px}
+.twin{display:grid;grid-template-columns:1fr 1fr;gap:0;border:2px solid var(--ink);border-radius:14px;overflow:hidden;background:var(--card)}
+.twin>div{padding:18px 20px}.twin>div+div{border-left:2px dashed var(--ink);background:#f1f6dc}
+.twin h3{margin:0 0 8px;font-size:15px;color:var(--mute);font-weight:400}
+.twin ul{margin:0;padding-left:18px}
+.swap{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:16px 20px}
+.swap h4{margin:0 0 10px;font-size:18px}
+.opt{display:grid;grid-template-columns:110px 1fr 56px;gap:12px;align-items:center;padding:6px 0}
+.bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden}.bar i{display:block;height:100%;background:var(--lime)}
+.opt small{grid-column:2/4;color:var(--mute);margin-top:-6px}
+.pct{text-align:right;font-weight:700}
+.note,.err{padding:12px 16px;border-radius:10px;font-size:15px}
+.note{background:#fff3d6}.err{background:#fde0dc}
+@media(max-width:560px){.twin{grid-template-columns:1fr}.twin>div+div{border-left:0;border-top:2px dashed var(--ink)}}
+</style></head><body><main>
+<h1>ZeroProof Twin <span>any cocktail, zero alcohol</span></h1>
+<p class="sub">Type a cocktail. We find the non-alcoholic ingredient with the closest flavour to its spirit.</p>
+<form id="f"><input id="q" value="mojito" aria-label="Cocktail name" placeholder="e.g. mojito"><button>Find the twin</button></form>
+<div class="chips"><button type="button">mojito</button><button type="button">daiquiri</button></div>
+<div id="out" aria-live="polite"></div>
+</main>
+<script>
+const out=document.getElementById('out'),q=document.getElementById('q');
+document.querySelectorAll('.chips button').forEach(b=>b.onclick=()=>{q.value=b.textContent;run()});
+document.getElementById('f').onsubmit=e=>{e.preventDefault();run()};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function run(){
+  out.innerHTML='<div class="note">Reading flavour data… the first search can take up to a minute (API allows 25 requests/min). Repeat searches are instant.</div>';
+  try{
+    const r=await fetch('/api/twin?name='+encodeURIComponent(q.value)),d=await r.json();
+    if(d.error)throw new Error(d.error);
+    let h=d.fallback?'<div class="note">Live FlavorDB call failed, showing demo flavour data. ('+esc(d.fallback)+')</div>':d.mock?'<div class="note">Demo data mode (no API key found). Add your key in .env for live FlavorDB results.</div>':'';
+    const top=d.swaps.map(s=>s.options[0]?esc(s.options[0].name):'?');
+    h+=`<div class="twin"><div><h3>${esc(d.cocktail)}</h3><ul>${d.swaps.map(s=>`<li><b>${esc(s.alcohol)}</b></li>`).join('')}${d.keep.map(k=>`<li>${esc(k)}</li>`).join('')}</ul></div>
+    <div><h3>Zero-proof twin</h3><ul>${d.swaps.map((s,i)=>`<li><b>${top[i]}</b></li>`).join('')}${d.keep.map(k=>`<li>${esc(k)}</li>`).join('')}</ul></div></div>`;
+    for(const s of d.swaps){
+      h+=`<div class="swap"><h4>Replacing ${esc(s.alcohol)}</h4>`+(s.note?`<p>${esc(s.note)}</p>`:'')+
+      s.options.map(o=>`<div class="opt"><span>${esc(o.name)}</span><div class="bar"><i style="width:${o.pct}%"></i></div><span class="pct">${o.pct}%</span><small>Shared flavours: ${o.shared.map(esc).join(', ')||'none'}</small></div>`).join('')+'</div>';
+    }
+    out.innerHTML=h;
+  }catch(e){out.innerHTML='<div class="err">'+esc(e.message)+'</div>'}
+}
+run();
+</script></body></html>
